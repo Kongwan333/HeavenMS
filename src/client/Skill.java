@@ -26,6 +26,7 @@ import java.util.List;
 import server.MapleStatEffect;
 import server.life.Element;
 
+// try to add some comment
 public class Skill {
     private int id;
     private List<MapleStatEffect> effects = new ArrayList<>();

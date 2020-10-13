@@ -211,6 +211,7 @@ public class CommandsExecutor {
         addCommand("mylawn", MapOwnerClaimCommand.class);
         addCommand("bosshp", BossHpCommand.class);
         addCommand("mobhp", MobHpCommand.class);
+        addCommand("autoattack", AutoAttack.class);
         
         commandsNameDesc.add(levelCommandsCursor);
     }

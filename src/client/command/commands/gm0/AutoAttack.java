@@ -22,7 +22,9 @@ import client.command.Command;
 import client.MapleCharacter;
 import client.MapleClient;
 
+import java.awt.*;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ScheduledFuture;
@@ -39,48 +41,69 @@ public class AutoAttack extends Command {
         setDescription("Free Your hand!");
     }
     
-    private ScheduledFuture<?> autoAttackSchedule;
+    private HashMap<Integer, ScheduledFuture<?>> autoAttackSchedule = new HashMap<>();
     
     @Override
     public void execute(MapleClient c, String[] params) {
         MapleCharacter player = c.getPlayer();
         Random random = new Random(System.currentTimeMillis());
-        
+
         if (params.length < 1)
         {
             player.yellowMessage("Syntax: !autoattack on/off range)");
             return;
         }
-        
+
         if (params[0].equalsIgnoreCase("on")) {
-            if (autoAttackSchedule != null) {
-                autoAttackSchedule.cancel(false);
+            if (autoAttackSchedule.containsKey(player.getId())) {
+                autoAttackSchedule.get(player.getId()).cancel(false);
             }
-            
+
             int maxBase = player.calculateMaxBaseDamage(player.getTotalWatk()) / 2;
-            final int range = params.length > 1 && Integer.parseInt(params[1]) > 0 ? Integer.parseInt(params[1]) : 500;
-            
+            // default attack range 500
+            int range = 500;
+            if (params.length > 1)
+            {
+                try
+                {
+                    range = Integer.parseInt(params[1]);
+                }
+                catch (Exception ex)
+                {
+                    range = 500;
+                    player.yellowMessage("invalid input, use default value: 500");
+                }
+            }
+
             System.out.println("Auto Attack Params：" + range);
-            
-            autoAttackSchedule = TimerManager.getInstance().register(new Runnable() {
-            @Override
-            public void run() {
-                MapleMap map = player.getMap();
-                List<MapleMapObject> monsters = map.getMapObjectsInRange(player.getPosition(), range, Arrays.asList(MapleMapObjectType.MONSTER));
-                for (MapleMapObject monstermo : monsters) {
-                    MapleMonster monster = (MapleMonster) monstermo;
-                    if (!monster.getStats().isFriendly() && !(monster.getId() >= 8810010 && monster.getId() <= 8810018)) {
-                        int damage = random.nextInt(maxBase) + maxBase;
-                        map.broadcastMessage(MaplePacketCreator.damageMonster(monster.getObjectId(), damage), monster.getPosition());
-//                        map.broadcastMessage(MaplePacketCreator.rangedAttack(player, 0, 0, attack.stance, attack.numAttackedAndDamage, visProjectile, attack.allDamage, attack.speed, attack.direction, attack.display);
-                        map.damageMonster(player, monster, damage);
+
+            int finalRange = range;
+            ScheduledFuture<?> playerSchedule = TimerManager.getInstance().register(new Runnable() {
+                @Override
+                public void run() {
+                    MapleMap map = player.getMap();
+                    // construct attack range
+                    int topX = (int)player.getPosition().getX() - finalRange / 2;
+                    int topY = (int)player.getPosition().getY() - finalRange / 2;
+                    Rectangle attackRange = new Rectangle(topX, topY, finalRange, finalRange);
+                    List<MapleMapObject> monsters = map.getMapObjectsInBox(attackRange, Arrays.asList(MapleMapObjectType.MONSTER));
+                    for (MapleMapObject monstermo : monsters) {
+                        MapleMonster monster = (MapleMonster) monstermo;
+                        if (!monster.getStats().isFriendly() && !(monster.getId() >= 8810010 && monster.getId() <= 8810018)) {
+                            int damage = random.nextInt(maxBase) + maxBase;
+                            map.broadcastMessage(MaplePacketCreator.damageMonster(monster.getObjectId(), damage), monster.getPosition());
+                            // map.broadcastMessage(MaplePacketCreator.rangedAttack(player, 0, 0, attack.stance, attack.numAttackedAndDamage, visProjectile, attack.allDamage, attack.speed, attack.direction, attack.display);
+                            map.damageMonster(player, monster, damage);
+                        }
                     }
                 }
-            }}, 500); // attack monster 500 per ms
+            }, 500); // attack monster 500 per ms
+
+            autoAttackSchedule.put(player.getId(), playerSchedule);
         }
         else if (params[0].equalsIgnoreCase("off")) {
-            if (autoAttackSchedule != null) {
-                autoAttackSchedule.cancel(false);
+            if (autoAttackSchedule.containsKey(player.getId())) {
+                autoAttackSchedule.get(player.getId()).cancel(false);
             }
         }
         else {
